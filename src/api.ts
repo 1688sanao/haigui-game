@@ -9,7 +9,7 @@ function getChatApiUrl(): string {
   if (import.meta.env.DEV) {
     return "/api/chat";
   }
-  return "http://localhost:3000/api/chat";
+  return "/api/chat";
 }
 
 const INVALID_ANSWER_HINT =
