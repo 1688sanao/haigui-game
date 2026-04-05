@@ -370,9 +370,13 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log("-----------------------------------------");
-  console.log(`服务端已启动: http://${HOST}:${PORT}`);
-  console.log("API 文档: /api/docs");
-  console.log("-----------------------------------------");
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log("-----------------------------------------");
+    console.log(`服务端已启动: http://${HOST}:${PORT}`);
+    console.log("API 文档: /api/docs");
+    console.log("-----------------------------------------");
+  });
+}
+
+module.exports = app;
