@@ -13,11 +13,6 @@ const DEEPSEEK_BASE_URL =
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
 const HOST = process.env.HOST || "localhost";
 
-const extraCorsOrigins = (process.env.CORS_ORIGINS || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
 /** 从单行文本解析判定：是 / 否 / 无关（支持【是】【不是】【与此无关】等） */
 function normalizeAnswerLine(line) {
   const s = String(line || "").trim();
@@ -145,27 +140,7 @@ function fallbackAnswer(question, story) {
   return { answer: "否", backupBottom: selectedBottom };
 }
 
-// 中间件配置
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://localhost:5175",
-  ...extraCorsOrigins,
-];
-
-app.use(
-  cors({
-    origin(origin, callback) {
-      // 允许无 origin（如 Postman/服务端请求）和本地开发端口
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-      callback(new Error(`CORS blocked origin: ${origin}`));
-    },
-    credentials: true,
-  }),
-);
+app.use(cors()); // 允许前端安全地调用后端
 
 // Request log middleware
 app.use((req, res, next) => {
@@ -185,8 +160,8 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// 根路由测试
-app.get("/", (req, res) => {
+// 本地直连时的服务信息（根路径 "/" 留给对话接口，与 Vercel api/chat 映射一致）
+app.get("/server", (req, res) => {
   res.json({
     service: "haigui-game-backend",
     status: "ok",
@@ -202,8 +177,8 @@ app.get("/api/docs", (_req, res) => {
     endpoints: [
       {
         method: "GET",
-        path: "/",
-        description: "服务信息",
+        path: "/server",
+        description: "服务信息（本地直连后端时）",
       },
       {
         method: "GET",
@@ -211,9 +186,16 @@ app.get("/api/docs", (_req, res) => {
         description: "健康检查接口",
       },
       {
+        method: "GET",
+        path: "/",
+        description:
+          "对话连通性（对外 URL 为 /api/chat；Vercel 将请求映射到本应用，内部路径为 /）",
+      },
+      {
         method: "POST",
-        path: "/api/chat",
-        description: "AI 对话接口",
+        path: "/",
+        description:
+          "AI 对话（对外 URL 为 /api/chat；Vercel 将请求映射到本应用，内部路径为 /）",
         body: {
           question: "string",
           story: {
@@ -239,8 +221,18 @@ app.get("/api/test", (_req, res) => {
   });
 });
 
-// 核心对话接口
-app.post("/api/chat", async (req, res) => {
+/**
+ * 对话接口：Vercel 已将 /api/chat 映射到本 Serverless，Express 内只监听 "/"。
+ * 本地开发时前端仍请求 /api/chat，由 Vite proxy 重写到本机 /。
+ */
+const chatRouter = express.Router();
+
+// 因为 Vercel 已经把 /api/chat 定位到这里了，代码内部只需要听 "/"
+chatRouter.get("/", (req, res) => {
+  res.json({ status: "ok", message: "后端接口连接正常" });
+});
+
+chatRouter.post("/", async (req, res) => {
   const { question, story } = req.body || {};
   if (!question || typeof question !== "string") {
     return res.status(400).json({ error: "参数 question 必填且必须是字符串。" });
@@ -360,6 +352,8 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 });
+
+app.use("/", chatRouter);
 
 // Fallback 404
 app.use((req, res) => {

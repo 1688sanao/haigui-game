@@ -7,7 +7,13 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      // 开发环境将 /api 转发到后端，避免浏览器跨域
+      // 与 Vercel 一致：对外 /api/chat，后端 Express 只监听 "/"
+      "/api/chat": {
+        target: "http://localhost:3001",
+        changeOrigin: true,
+        rewrite: () => "/",
+      },
+      // 其余 /api/*（如 /api/docs）原样转发
       "/api": {
         target: "http://localhost:3001",
         changeOrigin: true,
