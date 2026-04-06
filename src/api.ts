@@ -44,10 +44,8 @@ type ChatErrorBody = { error?: string; details?: string };
 export async function askAI(question: string, story: Story): Promise<string> {
   const chatUrl = getChatApiUrl(); // 默认 http://localhost:3000/api/chat
   try {
-    const e = question;
-    const t = story;
-    console.log("准备发送 question:", e);
-    console.log("准备发送 story:", t);
+ 
+  
     const response = await fetch(chatUrl, {
       method: "POST",
       headers: {

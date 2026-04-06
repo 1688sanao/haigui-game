@@ -30,6 +30,7 @@ function ChatBox({
   const [lastQuestion, setLastQuestion] = useState("");
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
   const isLoading = status === "sending";
 
   useEffect(() => {
@@ -42,6 +43,7 @@ function ChatBox({
 
   const sendMessage = async (textOverride?: string) => {
     const userInput = (textOverride ?? input).trim();
+
     if (!userInput || isLoading) {
       return;
     }
@@ -52,15 +54,10 @@ function ChatBox({
     setInput("");
 
     try {
-      console.log("准备发送 question:", userInput);
-      console.log("准备发送 story:", currentStory);
-
       const payload = JSON.stringify({
         question: userInput,
         story: currentStory,
       });
-
-      console.log("实际发送的 JSON 字符串:", payload);
 
       const res = await fetch(CHAT_API_URL, {
         method: "POST",
@@ -81,9 +78,9 @@ function ChatBox({
         error?: string;
       };
 
-      console.log("后端返回:", data);
-
-      const aiText = [data.answer, data.narration].filter(Boolean).join(" ");
+      const aiText = [data.answer || "", data.narration || ""]
+        .filter(Boolean)
+        .join(" ");
 
       setMessages((prev) => [
         ...prev,
@@ -93,7 +90,6 @@ function ChatBox({
 
       setStatus("idle");
     } catch (err) {
-      console.error("请求失败:", err);
       setStatus("error");
       const detail = err instanceof Error ? err.message : "未知错误";
       setError(`请求失败：${detail}`);
