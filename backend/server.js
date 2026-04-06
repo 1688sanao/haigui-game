@@ -222,17 +222,13 @@ app.get("/api/test", (_req, res) => {
 });
 
 /**
- * 对话接口：Vercel 已将 /api/chat 映射到本 Serverless，Express 内只监听 "/"。
- * 本地开发时前端仍请求 /api/chat，由 Vite proxy 重写到本机 /。
+ * 对话接口：由下方中间件按路径分发（见 isChatRequest）。
  */
-const chatRouter = express.Router();
-
-// 因为 Vercel 已经把 /api/chat 定位到这里了，代码内部只需要听 "/"
-chatRouter.get("/", (req, res) => {
+function chatGet(_req, res) {
   res.json({ status: "ok", message: "后端接口连接正常" });
-});
+}
 
-chatRouter.post("/", async (req, res) => {
+async function chatPost(req, res) {
   const { question, story } = req.body || {};
   if (!question || typeof question !== "string") {
     return res.status(400).json({ error: "参数 question 必填且必须是字符串。" });
@@ -351,9 +347,35 @@ chatRouter.post("/", async (req, res) => {
       requestId: req.requestId,
     });
   }
-});
+}
 
-app.use("/", chatRouter);
+/**
+ * Vercel Serverless 里 req.path / req.url / originalUrl 与本地可能不一致，任一对上即视为对话路由。
+ */
+function normalizePathname(s) {
+  const raw = String(s || "").split("?")[0];
+  const p = raw.replace(/\/+$/, "") || "/";
+  return p === "" ? "/" : p;
+}
+
+function isChatPath(p) {
+  return p === "/api/chat" || p === "/chat" || p === "/";
+}
+
+function isChatRequest(req) {
+  const candidates = [req.originalUrl, req.url, req.path];
+  for (const c of candidates) {
+    if (isChatPath(normalizePathname(c))) return true;
+  }
+  return false;
+}
+
+app.use((req, res, next) => {
+  if (!isChatRequest(req)) return next();
+  if (req.method === "GET") return chatGet(req, res);
+  if (req.method === "POST") return chatPost(req, res);
+  return next();
+});
 
 // Fallback 404
 app.use((req, res) => {
@@ -366,10 +388,7 @@ app.use((req, res) => {
 
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log("-----------------------------------------");
-    console.log(`服务端已启动: http://${HOST}:${PORT}`);
-    console.log("API 文档: /api/docs");
-    console.log("-----------------------------------------");
+    console.log(`Server running on http://${HOST}:${PORT}`);
   });
 }
 

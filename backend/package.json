@@ -1,11 +1,11 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Node API (Express)。对外路径由仓库根目录 api/* 暴露为 /api/*（如 /api/chat）。",
   "main": "server.js",
   "scripts": {
-    "dev": "node server.js",
-    "start": "node server.js",
+    "dev": "node dev.js",
+    "start": "node dev.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

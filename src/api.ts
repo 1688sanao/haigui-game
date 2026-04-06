@@ -1,15 +1,11 @@
 import type { Story } from "./data/stories";
 
-/** 开发环境走 Vite 代理（同源 /api），生产可用 VITE_API_CHAT_URL 指定完整地址 */
-function getChatApiUrl(): string {
+/** 默认联调地址；生产可设环境变量 `VITE_API_CHAT_URL`（完整 URL） */
+export const CHAT_API_URL = "/api/chat";
+
+export function getChatApiUrl(): string {
   const fromEnv = import.meta.env.VITE_API_CHAT_URL as string | undefined;
-  if (fromEnv) {
-    return fromEnv;
-  }
-  if (import.meta.env.DEV) {
-    return "/api/chat";
-  }
-  return "/api/chat";
+  return fromEnv ?? CHAT_API_URL;
 }
 
 const INVALID_ANSWER_HINT =
@@ -38,6 +34,7 @@ function normalizeAnswer(content: string): "是" | "否" | "无关" | null {
 }
 
 type ChatSuccessBody = {
+  reply?: string;
   answer?: string;
   narration?: string;
   kind?: "judgment" | "narrative";
@@ -45,14 +42,21 @@ type ChatSuccessBody = {
 type ChatErrorBody = { error?: string; details?: string };
 
 export async function askAI(question: string, story: Story): Promise<string> {
-  const chatUrl = getChatApiUrl();
+  const chatUrl = getChatApiUrl(); // 默认 http://localhost:3000/api/chat
   try {
+    const e = question;
+    const t = story;
+    console.log("准备发送 question:", e);
+    console.log("准备发送 story:", t);
     const response = await fetch(chatUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ question, story }),
+      body: JSON.stringify({
+        question,
+        story,
+      }),
     });
 
     const rawText = await response.text();
@@ -71,6 +75,11 @@ export async function askAI(question: string, story: Story): Promise<string> {
         data.details ||
         `服务异常（${response.status}）`;
       throw new Error(msg);
+    }
+
+    const replyText = data.reply?.trim();
+    if (replyText) {
+      return replyText;
     }
 
     const content = data.answer?.trim();

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import Message, { type ChatMessage } from "./Message";
-import { askAI } from "../api";
+import { CHAT_API_URL } from "../api";
 import type { Story } from "../data/stories";
 
 interface ChatBoxProps {
@@ -12,7 +12,11 @@ interface ChatBoxProps {
 
 type ChatStatus = "idle" | "sending" | "error";
 
-function ChatBox({ story, initialMessages, onMessagesChange }: ChatBoxProps) {
+function ChatBox({
+  story: currentStory,
+  initialMessages,
+  onMessagesChange,
+}: ChatBoxProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(
     initialMessages ?? [
       {
@@ -36,54 +40,75 @@ function ChatBox({ story, initialMessages, onMessagesChange }: ChatBoxProps) {
     onMessagesChange?.(messages);
   }, [messages, onMessagesChange]);
 
-  const submitQuestion = async (rawContent: string) => {
-    const content = rawContent.trim();
-    if (!content || isLoading) {
+  const sendMessage = async (textOverride?: string) => {
+    const userInput = (textOverride ?? input).trim();
+    if (!userInput || isLoading) {
       return;
     }
 
     setError(null);
     setStatus("sending");
-    setLastQuestion(content);
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content },
-      { role: "ai", content: "思考中..." },
-    ]);
+    setLastQuestion(userInput);
     setInput("");
 
     try {
-      const answer = await askAI(content, story);
-      setMessages((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = { role: "ai", content: answer };
-        return next;
+      console.log("准备发送 question:", userInput);
+      console.log("准备发送 story:", currentStory);
+
+      const payload = JSON.stringify({
+        question: userInput,
+        story: currentStory,
       });
+
+      console.log("实际发送的 JSON 字符串:", payload);
+
+      const res = await fetch(CHAT_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: payload,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `服务异常（${res.status}）`);
+      }
+
+      const data = (await res.json()) as {
+        answer?: string;
+        narration?: string;
+        error?: string;
+      };
+
+      console.log("后端返回:", data);
+
+      const aiText = [data.answer, data.narration].filter(Boolean).join(" ");
+
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", content: userInput },
+        { role: "ai", content: aiText || "后端没有返回内容" },
+      ]);
+
       setStatus("idle");
     } catch (err) {
+      console.error("请求失败:", err);
       setStatus("error");
       const detail = err instanceof Error ? err.message : "未知错误";
       setError(`请求失败：${detail}`);
-      setMessages((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = {
-          role: "ai",
-          content: "抱歉，我刚刚走神了，请稍后再试一次。",
-        };
-        return next;
-      });
     }
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await submitQuestion(input);
+    await sendMessage();
   };
 
   const handleKeyDown = async (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      await submitQuestion(input);
+      await sendMessage();
     }
   };
 
@@ -120,7 +145,7 @@ function ChatBox({ story, initialMessages, onMessagesChange }: ChatBoxProps) {
               {lastQuestion && (
                 <button
                   type="button"
-                  onClick={() => submitQuestion(lastQuestion)}
+                  onClick={() => void sendMessage(lastQuestion)}
                   disabled={isLoading}
                   className="shrink-0 rounded-md bg-rose-500/20 px-2.5 py-1 text-xs font-medium text-rose-100 transition hover:bg-rose-500/30 disabled:opacity-60"
                 >
